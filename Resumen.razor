@@ -1,0 +1,76 @@
+@page "/ganancias"
+@using System.Linq
+@using System.Text.Json
+@using System.IO
+
+<div class="text-center">
+    <h3><b>Ver Ganancias por Fecha:</b></h3>
+</div>
+<hr>
+
+<label><b>Fecha:</b></label>
+<input type="date" @bind="fechaSeleccionada" />
+<button style="background-color: blue; color: white" @onclick="CalcularGanancias">Buscar</button>
+
+
+<!-- Mostrar resultados -->
+@if (resultadosCalculados)
+{
+    <div>
+        <br>
+        <h4><b>Ganancias para la fecha: </b>@fechaSeleccionada:</h4>
+        <br>
+        <p><b>Número de Facturas: </b>@cantidadFacturas.</p>
+        <p><b>Total Cobrado: </b>@totalCobrado.</p>
+        <ul>
+            @foreach (var numeroSerie in numerosSerie)
+            {
+                <li><b>Número de Serie: </b>@numeroSerie</li>
+            }
+        </ul>
+    </div>
+}
+
+@code {
+    private bool resultadosCalculados = false;
+    private DateTime fechaSeleccionada;
+    private int cantidadFacturas = 0;
+    private decimal totalCobrado = 0;
+    private List<string> numerosSerie = new List<string>();
+
+    private void CalcularGanancias()
+    {
+        resultadosCalculados = false;
+        cantidadFacturas = 0;
+        totalCobrado = 0;
+        numerosSerie.Clear();
+
+        try
+        {
+            DateTime fechaSeleccionadaDateTime = fechaSeleccionada;
+
+            string jsonText = File.ReadAllText("facturas.json");
+            var facturas = JsonSerializer.Deserialize<List<AgregarF.FacturaModel>>(jsonText);
+
+            if (facturas != null)
+            {
+                //Filtrar las facturas por la fecha seleccionada
+                var facturasEnFecha = facturas
+                .Where(f => DateTime.Parse(f.Fecha).Date == fechaSeleccionadaDateTime.Date)
+                .ToList();
+
+                cantidadFacturas = facturasEnFecha.Count;
+                totalCobrado = facturasEnFecha.Sum(f => f.TotalPagar);
+
+                numerosSerie = facturasEnFecha.Select(f => f.NumeroSerie).ToList();
+
+                resultadosCalculados = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al calcular ganancias: {ex.Message}");
+        }
+    }
+
+}

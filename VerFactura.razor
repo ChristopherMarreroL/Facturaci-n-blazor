@@ -1,0 +1,94 @@
+@page "/verfactura"
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components
+
+<div>
+    <h3>Factura Generada</h3>
+    <div>
+       <!-- @htmlFactura-->
+    </div>
+</div>
+
+
+@code {
+    public class VerFacturaComponent : ComponentBase
+    {
+        [Parameter]
+        public string htmlFactura { get; set; } = "";
+
+        protected override void OnInitialized()
+        {
+            CargarDatos();
+        }
+
+        // Método para cargar datos desde el archivo JSON y generar el contenido de htmlFactura
+        private void CargarDatos()
+        {
+            try
+            {
+                string jsonText = File.ReadAllText("facturas.json");
+
+                // Verifica si el archivo está vacío o no contiene datos válidos
+                if (!string.IsNullOrWhiteSpace(jsonText))
+                {
+                    // Deserializa el JSON en una lista de FacturaModel
+                    var facturas = JsonSerializer.Deserialize<List<AgregarF.FacturaModel>>(jsonText);
+
+                    if (facturas != null && facturas.Any())
+                    {
+                        // Selecciona la última factura agregada (puedes ajustar la lógica según tus necesidades)
+                        var ultimaFactura = facturas.Last();
+
+                        // Genera el HTML de la última factura
+                        htmlFactura = GenerarHtmlFactura(ultimaFactura);
+                    }
+                    else
+                    {
+                        htmlFactura = "No hay facturas disponibles.";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al cargar datos: {ex.Message}");
+            }
+        }
+
+        // Método para generar el HTML de una factura específica
+        private string GenerarHtmlFactura(AgregarF.FacturaModel factura)
+        {
+            // Construye una cadena que representa la lista de artículos en la factura
+            string articulosHtml = "";
+            foreach (var articulo in factura.Articulos)
+            {
+                articulosHtml += $@"
+                    <p>Artículo: {articulo.Nombre}</p>
+                    <p>Cantidad: {articulo.Cantidad}</p>
+                    <p>Precio: {articulo.Precio}</p>
+                    <p>Total del artículo: {articulo.Total}</p>
+                    <hr>";
+            }
+
+            // Genera el HTML completo con los datos de la factura
+            string html = $@"
+                <html>
+                <head>
+                    <title>Factura</title>
+                </head>
+                <body>
+                    <h2><b>Factura</b></h2>
+                    <p>Fecha: {factura.Fecha}</p>
+                    <p>Código del Cliente: {factura.CodigoCliente}</p>
+                    <p>Nombre del Cliente: {factura.NombreCliente}</p>
+                    <h2>Artículos</h2>
+                    {articulosHtml}
+                    <p>Total a pagar: {factura.TotalPagar}</p>
+                    <p>Comentario: {factura.Comentario}</p>
+                    <p>Número de Serie: {factura.NumeroSerie}</p>
+                </body>
+                </html>";
+
+            return html;
+        }
+    }
+}

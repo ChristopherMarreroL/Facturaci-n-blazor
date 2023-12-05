@@ -1,0 +1,297 @@
+@page "/factura"
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components
+@inject NavigationManager NavigationManager
+
+<div class="text-center">
+    <br><h3><b>Registrar Factura:</b></h3></div>
+<hr>
+
+<div>
+    <label><b>Fecha:</b></label>
+    <input type="text" @bind="factura.Fecha" />
+</div>
+
+<div>
+    <br>
+    <label><b>Código del Cliente:</b></label>
+    <input type="text" @bind="factura.CodigoCliente" />
+    <button style="background-color: blue; color: white" @onclick="BuscarCliente">Buscar</button>
+</div>
+
+<!--Mensaje de error para el cliente no encontrado-->
+    @if (!string.IsNullOrWhiteSpace(errorClienteMensaje))
+    {
+        <div style="color: red;">@errorClienteMensaje</div>
+    }
+
+<div>
+    <br>
+    <label><b>Nombre del Cliente:</b></label>
+    <input type="text" @bind="factura.NombreCliente" />
+</div>
+
+<!--Sección para Artículos-->
+<div>
+    <br>
+    <div class="text-center">
+    <br><h3><b>Artículos:</b></h3></div>
+    <hr>
+    <div>
+        <label><b>Nombre:</b></label>
+        <input type="text" @bind="articulo.Nombre" />
+    </div>
+    <div>
+        <br>
+        <label><b>Cantidad:</b></label>
+        <input type="text" @bind="articulo.Cantidad" />
+    </div>
+    <div>
+        <br>
+        <label><b>Precio:</b></label>
+        <input type="text" @bind="articulo.Precio" />
+    </div>
+    <div>
+        <br>
+        <label><b>Total del articulo:</b></label>
+        <input type="text" value="@articulo.Total" readonly />
+    </div>
+
+    
+
+    <br>
+    <button style="background-color: orange; color: white" @onclick="AgregarArticulo">Agregar Artículo</button>
+</div>
+<hr>
+
+<!--Sección para Total a pagar-->
+<div>
+    <br>
+    <label><b>Total a pagar:</b></label>
+    <input type="text" @bind="factura.TotalPagar" readonly />
+</div>
+
+<!--Sección para Comentario-->
+<div>
+    <br>
+    <label><b>Comentario:</b></label>
+    <textarea @bind="factura.Comentario"></textarea>
+</div>
+<br>
+
+<!--Botón para Imprimir-->
+<button style="background-color: green; color: white" @onclick="Imprimir">Imprimir</button>
+
+@code {
+    // Hacer que la lista de facturas sea pública
+    public List<FacturaModel> facturas;
+    private FacturaModel factura = new FacturaModel();
+    private ArticuloModel articulo = new ArticuloModel();
+
+    // Variable para almacenar el mensaje de error del cliente
+    private string errorClienteMensaje = "";
+
+    // Método para cargar datos desde el archivo JSON
+    private void CargarDatos()
+    {
+        try
+        {
+            string jsonText = File.ReadAllText("facturas.json");
+
+            // Verifica si el archivo está vacío o no contiene datos válidos
+            if (string.IsNullOrWhiteSpace(jsonText))
+            {
+                facturas = new List<FacturaModel>();
+            }
+            else
+            {
+                facturas = JsonSerializer.Deserialize<List<FacturaModel>>(jsonText);
+
+                if (facturas == null)
+                {
+                    facturas = new List<FacturaModel>();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar datos: {ex.Message}");
+        }
+    }
+
+    private void GuardarDatos()
+    {
+        try
+        {
+            // Asegúrate de que la lista de facturas no sea nula antes de guardar
+            facturas ??= new List<FacturaModel>();
+
+            // Agrega la factura actual a la lista (si no existe ya)
+            if (!facturas.Any(f => f.NumeroSerie == factura.NumeroSerie))
+            {
+                facturas.Add(factura);
+            }
+
+            // Serializa y guarda la lista completa
+            string jsonText = JsonSerializer.Serialize(facturas);
+            File.WriteAllText("facturas.json", jsonText);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al guardar datos: {ex.Message}");
+        }
+    }
+
+    // Método para buscar un cliente
+    private void BuscarCliente()
+    {
+        try
+        {
+            // Limpiar mensaje de error previo
+            errorClienteMensaje = "";
+
+            // Verifica si el código del cliente está vacío
+            if (string.IsNullOrWhiteSpace(factura.CodigoCliente))
+            {
+                // Asigna un mensaje de error si el código del cliente está vacío
+                errorClienteMensaje = "El código del cliente no puede estar vacío.";
+                return;
+            }
+
+            // Busca el código del cliente en la lista de facturas
+            FacturaModel facturaEncontrada = facturas.FirstOrDefault(f => f.CodigoCliente == factura.CodigoCliente);
+
+            if (facturaEncontrada != null)
+            {
+                // Si se encuentra el cliente, asigna el nombre correspondiente
+                factura.NombreCliente = facturaEncontrada.NombreCliente;
+            }
+            else
+            {
+                // Si el cliente no se encuentra, asigna un mensaje de error
+                errorClienteMensaje = $"El cliente con el código (matricula) {factura.CodigoCliente} no existe.";
+            }
+        }
+        catch (Exception ex)
+        {
+            // Muestra cualquier error en la consola
+            Console.WriteLine($"Error al buscar cliente: {ex.Message}");
+        }
+    }
+
+    // Método para imprimir y guardar la factura
+    public void Imprimir()
+    {
+        try
+        {
+            // Guarda los datos antes de imprimir
+            GuardarDatos();
+
+            // Crea el HTML con los datos de la factura
+            string html = GenerarHtmlFactura();
+
+            // Muestra el HTML en una nueva página (VerFactura)
+            NavigationManager.NavigateTo($"/verfactura?htmlFactura={Uri.EscapeDataString(html)}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al imprimir factura: {ex.Message}");
+        }
+    }
+
+    // Método para generar el HTML de la factura
+    public string GenerarHtmlFactura()
+    {
+        // Construye una cadena que representa la lista de artículos en la factura
+        string articulosHtml = "";
+        foreach (var articulo in factura.Articulos)
+        {
+            articulosHtml += $@"
+                <p>Artículo: {articulo.Nombre}</p>
+                <p>Cantidad: {articulo.Cantidad}</p>
+                <p>Precio: {articulo.Precio}</p>
+                <p>Total del artículo: {articulo.Total}</p>
+                <hr>";
+        }
+
+        // Genera el HTML completo con los datos de la factura
+        string html = $@"
+            <html>
+            <head>
+                <title>Factura</title>
+            </head>
+            <body>
+                <h2><b>Factura</b></h2>
+                <p>Fecha: {factura.Fecha}</p>
+                <p>Código del Cliente: {factura.CodigoCliente}</p>
+                <p>Nombre del Cliente: {factura.NombreCliente}</p>
+                <h2>Artículos</h2
+                {articulosHtml}
+            <p>Total a pagar: {factura.TotalPagar}</p>
+            <p>Comentario: {factura.Comentario}</p>
+            <p>Número de Serie: {factura.NumeroSerie}</p>
+            </body>
+            </html>";
+
+        return html;
+    }
+
+    // Método para agregar un artículo a la factura
+    private void AgregarArticulo()
+    {
+        try
+        {
+            // Verifica si los campos del artículo están vacíos
+            if (string.IsNullOrWhiteSpace(articulo.Nombre) || articulo.Cantidad <= 0 || articulo.Precio <= 0)
+            {
+                Console.WriteLine("Por favor, complete todos los campos del artículo.");
+                return;
+            }
+
+            // Agrega el artículo a la lista de artículos en la factura
+            factura.Articulos.Add(new ArticuloModel
+            {
+                Nombre = articulo.Nombre,
+                Cantidad = articulo.Cantidad,
+                Precio = articulo.Precio
+            });
+
+            // Recalcula el total a pagar sumando los totales de cada artículo
+            factura.TotalPagar = factura.Articulos.Sum(a => a.Total);
+
+            // Limpia los campos del artículo después de agregarlo
+            articulo.Nombre = "";
+            articulo.Cantidad = 0;
+            articulo.Precio = 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al agregar artículo: {ex.Message}");
+        }
+    }
+
+    public class FacturaModel
+    {
+        public string Fecha { get; set; } = "";
+        public string CodigoCliente { get; set; } = "";
+        public string NombreCliente { get; set; } = "";
+        public List<ArticuloModel> Articulos { get; set; } = new List<ArticuloModel>();
+        public decimal TotalPagar { get; set; }
+        public string Comentario { get; set; } = "";
+        public string NumeroSerie { get; set; } = Guid.NewGuid().ToString();
+    }
+
+    // Clase para un artículo
+    public class ArticuloModel
+    {
+        public string Nombre { get; set; } = "";
+        public int Cantidad { get; set; }
+        public decimal Precio { get; set; }
+        public decimal Total => Cantidad * Precio;
+    }
+
+    protected override void OnInitialized()
+    {
+        CargarDatos();
+    }
+}
